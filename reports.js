@@ -154,4 +154,74 @@ router.get('/file/:id', async (req, res) => {
   }
 });
 
+// GET /api/reports/sync - Sync existing files in uploads folder with database
+router.get('/sync', async (req, res) => {
+  try {
+    const uploadsDir = path.join(__dirname, 'uploads');
+    
+    // Check if uploads directory exists
+    if (!fs.existsSync(uploadsDir)) {
+      return res.status(404).json({ error: 'Uploads directory not found' });
+    }
+
+    // Read all files in uploads directory
+    const files = fs.readdirSync(uploadsDir).filter(file => file.endsWith('.pdf'));
+    
+    // Get all existing reports from database
+    const [existingReports] = await pool.execute('SELECT filePath FROM reports');
+    const existingPaths = existingReports.map(r => r.filePath);
+    
+    // Find files that are not in database
+    const orphanedFiles = files.filter(file => {
+      const filePath = `uploads/${file}`;
+      return !existingPaths.includes(filePath);
+    });
+
+    if (orphanedFiles.length === 0) {
+      return res.json({ 
+        message: 'All files are already synced', 
+        syncedCount: 0,
+        totalFiles: files.length 
+      });
+    }
+
+    // Get first event to associate orphaned files with
+    const [events] = await pool.execute('SELECT id FROM events ORDER BY id ASC LIMIT 1');
+    
+    if (events.length === 0) {
+      return res.status(400).json({ 
+        error: 'No events found in database. Please create an event first.',
+        orphanedFiles: orphanedFiles.length
+      });
+    }
+
+    const defaultEventId = events[0].id;
+    let syncedCount = 0;
+
+    // Insert orphaned files into database
+    for (const file of orphanedFiles) {
+      const filePath = `uploads/${file}`;
+      try {
+        await pool.execute(
+          'INSERT INTO reports (eventId, filePath, uploadedBy) VALUES (?, ?, ?)',
+          [defaultEventId, filePath, 'system']
+        );
+        syncedCount++;
+      } catch (error) {
+        console.error(`Error syncing file ${file}:`, error);
+      }
+    }
+
+    res.json({ 
+      message: `Successfully synced ${syncedCount} files`, 
+      syncedCount,
+      totalFiles: files.length,
+      orphanedFiles: orphanedFiles.length
+    });
+  } catch (error) {
+    console.error('Error syncing files:', error);
+    res.status(500).json({ error: 'Failed to sync files' });
+  }
+});
+
 module.exports = router;
