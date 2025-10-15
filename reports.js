@@ -53,18 +53,41 @@ router.post('/upload', upload.single('report'), async (req, res) => {
   }
 });
 
-// GET /api/reports - Get all reports
+// GET /api/reports - Get all reports with file details
 router.get('/', async (req, res) => {
   try {
     // Query all reports with event names, including reports for deleted events
     const [reports] = await pool.execute(`
-      SELECT r.*, COALESCE(e.name, 'Event Deleted') as eventName
+      SELECT r.id, r.eventId, r.filePath, r.uploadedBy, r.uploadedAt, COALESCE(e.name, 'Event Deleted') as eventName, COALESCE(e.id, r.eventId) as eventId
       FROM reports r
       LEFT JOIN events e ON r.eventId = e.id
       ORDER BY r.uploadedAt DESC
     `);
 
-    res.json(reports);
+    // Add file size and check if file exists
+    const reportsWithDetails = reports.map(report => {
+      const filePath = path.join(__dirname, report.filePath);
+      let fileSize = 0;
+      let exists = false;
+      try {
+        if (fs.existsSync(filePath)) {
+          const stats = fs.statSync(filePath);
+          fileSize = stats.size;
+          exists = true;
+        }
+      } catch (error) {
+        console.error('Error checking file:', error);
+      }
+
+      return {
+        ...report,
+        fileName: path.basename(report.filePath),
+        fileSize,
+        exists
+      };
+    });
+
+    res.json(reportsWithDetails);
   } catch (error) {
     console.error('Error fetching reports:', error);
     res.status(500).json({ error: 'Failed to fetch reports' });
@@ -109,6 +132,25 @@ router.get('/files', async (req, res) => {
   } catch (error) {
     console.error('Error fetching files:', error);
     res.status(500).json({ error: 'Failed to fetch files' });
+  }
+});
+
+// GET /api/reports/file/:id - Serve the uploaded file
+router.get('/file/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [rows] = await pool.execute('SELECT filePath FROM reports WHERE id = ?', [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+    const filePath = path.join(__dirname, rows[0].filePath);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    res.sendFile(filePath);
+  } catch (error) {
+    console.error('Error serving file:', error);
+    res.status(500).json({ error: 'Failed to serve file' });
   }
 });
 
