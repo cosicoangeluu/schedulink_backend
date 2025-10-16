@@ -105,14 +105,13 @@ router.post('/', async (req, res) => {
 
   try {
     const [result] = await pool.execute(
-      'INSERT INTO events (name, description, start_date, end_date, venues, equipment, application_date, rental_date, behalf_of, contact_info, nature_of_event, requires_equipment, chairs_qty, tables_qty, projector, other_equipment, setup_start_time, setup_end_time, setup_hours, event_start_time, event_end_time, event_hours, cleanup_start_time, cleanup_end_time, cleanup_hours, total_hours, multi_day_schedule, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO events (name, description, start_date, end_date, venues, application_date, rental_date, behalf_of, contact_info, nature_of_event, requires_equipment, chairs_qty, tables_qty, projector, other_equipment, setup_start_time, setup_end_time, setup_hours, event_start_time, event_end_time, event_hours, cleanup_start_time, cleanup_end_time, cleanup_hours, total_hours, multi_day_schedule, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         name,
         defaultValues.description,
         start_date,
         defaultValues.end_date,
         JSON.stringify(defaultValues.venues),
-        JSON.stringify(defaultValues.equipment),
         defaultValues.application_date,
         defaultValues.rental_date,
         defaultValues.behalf_of,
@@ -250,14 +249,13 @@ router.put('/:id', async (req, res) => {
 
   try {
     const [result] = await pool.execute(
-      'UPDATE events SET name = ?, description = ?, start_date = ?, end_date = ?, venues = ?, equipment = ?, application_date = ?, rental_date = ?, behalf_of = ?, contact_info = ?, nature_of_event = ?, requires_equipment = ?, chairs_qty = ?, tables_qty = ?, projector = ?, other_equipment = ?, setup_start_time = ?, setup_end_time = ?, setup_hours = ?, event_start_time = ?, event_end_time = ?, event_hours = ?, cleanup_start_time = ?, cleanup_end_time = ?, cleanup_hours = ?, total_hours = ?, multi_day_schedule = ? WHERE id = ?',
+      'UPDATE events SET name = ?, description = ?, start_date = ?, end_date = ?, venues = ?, application_date = ?, rental_date = ?, behalf_of = ?, contact_info = ?, nature_of_event = ?, requires_equipment = ?, chairs_qty = ?, tables_qty = ?, projector = ?, other_equipment = ?, setup_start_time = ?, setup_end_time = ?, setup_hours = ?, event_start_time = ?, event_end_time = ?, event_hours = ?, cleanup_start_time = ?, cleanup_end_time = ?, cleanup_hours = ?, total_hours = ?, multi_day_schedule = ? WHERE id = ?',
       [
         name,
         defaultValues.description,
         start_date,
         defaultValues.end_date,
         JSON.stringify(defaultValues.venues),
-        JSON.stringify(defaultValues.equipment),
         defaultValues.application_date,
         defaultValues.rental_date,
         defaultValues.behalf_of,
