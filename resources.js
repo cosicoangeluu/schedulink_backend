@@ -6,7 +6,7 @@ const router = express.Router();
 // GET /api/resources - Get all resources
 router.get('/', async (req, res) => {
   try {
-    const [rows] = await pool.execute('SELECT * FROM resources ORDER BY name');
+    const [rows] = await pool.execute('SELECT *, created_at FROM resources ORDER BY name');
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
