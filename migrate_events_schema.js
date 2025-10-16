@@ -23,7 +23,8 @@ async function migrateEventsSchema() {
       'event_start_time TIME NULL',
       'event_end_time TIME NULL',
       'cleanup_start_time TIME NULL',
-      'cleanup_end_time TIME NULL'
+      'cleanup_end_time TIME NULL',
+      'event_hours DECIMAL(5,2) DEFAULT 0'
     ];
 
     for (const columnDef of columnsToAdd) {
