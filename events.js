@@ -18,6 +18,29 @@ router.get('/', async (req, res) => {
     query += ' ORDER BY start_date DESC';
 
     const [rows] = await pool.execute(query, params);
+
+    // Parse JSON fields
+    rows.forEach(row => {
+      if (row.venues) {
+        try {
+          row.venues = JSON.parse(row.venues);
+        } catch (e) {
+          row.venues = [];
+        }
+      } else {
+        row.venues = [];
+      }
+      if (row.equipment) {
+        try {
+          row.equipment = JSON.parse(row.equipment);
+        } catch (e) {
+          row.equipment = [];
+        }
+      } else {
+        row.equipment = [];
+      }
+    });
+
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -31,7 +54,29 @@ router.get('/:id', async (req, res) => {
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Event not found' });
     }
-    res.json(rows[0]);
+
+    // Parse JSON fields
+    const event = rows[0];
+    if (event.venues) {
+      try {
+        event.venues = JSON.parse(event.venues);
+      } catch (e) {
+        event.venues = [];
+      }
+    } else {
+      event.venues = [];
+    }
+    if (event.equipment) {
+      try {
+        event.equipment = JSON.parse(event.equipment);
+      } catch (e) {
+        event.equipment = [];
+      }
+    } else {
+      event.equipment = [];
+    }
+
+    res.json(event);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -173,7 +218,8 @@ router.post('/', async (req, res) => {
       cleanup_hours: defaultValues.cleanup_hours,
       total_hours: defaultValues.total_hours,
       multi_day_schedule: defaultValues.multi_day_schedule,
-      status: 'pending'
+      status: 'pending',
+      created_at: new Date()
     });
   } catch (error) {
     console.error('Error creating event:', error);
