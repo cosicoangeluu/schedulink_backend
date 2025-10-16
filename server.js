@@ -4,6 +4,7 @@ const { initializeDatabase } = require('./database');
 const eventsRouter = require('./events');
 const notificationsRouter = require('./notifications');
 const resourcesRouter = require('./resources');
+const venuesRouter = require('./venues');
 
 const reportsRouter = require('./reports');
 const tasksRouter = require('./tasks');
@@ -38,6 +39,7 @@ app.use('/api/', cache(300));
 app.use('/api/events', eventsRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/resources', resourcesRouter);
+app.use('/api/venues', venuesRouter);
 
 app.use('/api/reports', reportsRouter);
 app.use('/api/tasks', tasksRouter);

@@ -39,11 +39,11 @@ router.get('/:id', async (req, res) => {
 
 // POST /api/events - Create new event with status pending and create notification
 router.post('/', async (req, res) => {
-  const { name, description, start_date, end_date, gymnasium, sports_area, application_date, rental_date, behalf_of, contact_info, nature_of_event } = req.body;
+  const { name, description, start_date, end_date, venues, application_date, rental_date, behalf_of, contact_info, nature_of_event } = req.body;
   try {
     const [result] = await pool.execute(
-      'INSERT INTO events (name, description, start_date, end_date, gymnasium, sports_area, application_date, rental_date, behalf_of, contact_info, nature_of_event, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [name, description, start_date, end_date || null, gymnasium || false, sports_area || false, application_date, rental_date, behalf_of, contact_info, nature_of_event, 'pending']
+      'INSERT INTO events (name, description, start_date, end_date, venues, application_date, rental_date, behalf_of, contact_info, nature_of_event, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, description, start_date, end_date || null, JSON.stringify(venues || []), application_date, rental_date, behalf_of, contact_info, nature_of_event, 'pending']
     );
     const eventId = result.insertId;
 
@@ -53,7 +53,7 @@ router.post('/', async (req, res) => {
       ['event_approval', `New event "${name}" requires approval`, eventId, 'pending']
     );
 
-    res.status(201).json({ id: eventId, name, description, start_date, end_date, gymnasium, sports_area, application_date, rental_date, behalf_of, contact_info, nature_of_event, status: 'pending' });
+    res.status(201).json({ id: eventId, name, description, start_date, end_date, venues, application_date, rental_date, behalf_of, contact_info, nature_of_event, status: 'pending' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -61,16 +61,16 @@ router.post('/', async (req, res) => {
 
 // PUT /api/events/:id - Update event details
 router.put('/:id', async (req, res) => {
-  const { name, description, start_date, end_date, gymnasium, sports_area, application_date, rental_date, behalf_of, contact_info, nature_of_event } = req.body;
+  const { name, description, start_date, end_date, venues, application_date, rental_date, behalf_of, contact_info, nature_of_event } = req.body;
   try {
     const [result] = await pool.execute(
-      'UPDATE events SET name = ?, description = ?, start_date = ?, end_date = ?, gymnasium = ?, sports_area = ?, application_date = ?, rental_date = ?, behalf_of = ?, contact_info = ?, nature_of_event = ? WHERE id = ?',
-      [name, description, start_date, end_date || null, gymnasium || false, sports_area || false, application_date, rental_date, behalf_of, contact_info, nature_of_event, req.params.id]
+      'UPDATE events SET name = ?, description = ?, start_date = ?, end_date = ?, venues = ?, application_date = ?, rental_date = ?, behalf_of = ?, contact_info = ?, nature_of_event = ? WHERE id = ?',
+      [name, description, start_date, end_date || null, JSON.stringify(venues || []), application_date, rental_date, behalf_of, contact_info, nature_of_event, req.params.id]
     );
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Event not found' });
     }
-    res.json({ id: req.params.id, name, description, start_date, end_date, gymnasium, sports_area, application_date, rental_date, behalf_of, contact_info, nature_of_event });
+    res.json({ id: req.params.id, name, description, start_date, end_date, venues, application_date, rental_date, behalf_of, contact_info, nature_of_event });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

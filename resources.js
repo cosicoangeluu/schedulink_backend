@@ -28,13 +28,13 @@ router.get('/:id', async (req, res) => {
 
 // POST /api/resources - Create new resource
 router.post('/', async (req, res) => {
-  const { name, description, category } = req.body;
+  const { name, description, category, total, available, location, status, condition } = req.body;
   try {
     const [result] = await pool.execute(
-      'INSERT INTO resources (name, description, category) VALUES (?, ?, ?)',
-      [name, description, category]
+      'INSERT INTO resources (name, description, category, total, available, location, status, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, description, category, total, available, location, status || 'available', condition || 'good']
     );
-    res.status(201).json({ id: result.insertId, name, description, category, availability: true });
+    res.status(201).json({ id: result.insertId, name, description, category, total, available, location, status: status || 'available', condition: condition || 'good' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -42,16 +42,16 @@ router.post('/', async (req, res) => {
 
 // PUT /api/resources/:id - Update resource
 router.put('/:id', async (req, res) => {
-  const { name, description, category, availability } = req.body;
+  const { name, description, category, total, available, location, status, condition } = req.body;
   try {
     const [result] = await pool.execute(
-      'UPDATE resources SET name = ?, description = ?, category = ?, availability = ? WHERE id = ?',
-      [name, description, category, availability, req.params.id]
+      'UPDATE resources SET name = ?, description = ?, category = ?, total = ?, available = ?, location = ?, status = ?, `condition` = ? WHERE id = ?',
+      [name, description, category, total, available, location, status, condition, req.params.id]
     );
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Resource not found' });
     }
-    res.json({ id: req.params.id, name, description, category, availability });
+    res.json({ id: req.params.id, name, description, category, total, available, location, status, condition });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
