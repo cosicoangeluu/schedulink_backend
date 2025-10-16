@@ -86,8 +86,7 @@ async function initializeDatabase() {
         eventId INT NOT NULL,
         filePath VARCHAR(255) NOT NULL,
         uploadedBy VARCHAR(50) NOT NULL,
-        uploadedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (eventId) REFERENCES events(id)
+        uploadedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
