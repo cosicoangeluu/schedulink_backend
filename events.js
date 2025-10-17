@@ -346,36 +346,35 @@ router.put('/:id', upload.single('multi_day_schedule'), async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Event not found' });
     }
-    res.json({
-      id: req.params.id,
-      name,
-      description: defaultValues.description,
-      start_date,
-      end_date: defaultValues.end_date,
-      venues: defaultValues.venues,
-      equipment: defaultValues.equipment,
-      application_date: defaultValues.application_date,
-      rental_date: defaultValues.rental_date,
-      behalf_of: defaultValues.behalf_of,
-      contact_info: defaultValues.contact_info,
-      nature_of_event: defaultValues.nature_of_event,
-      requires_equipment: defaultValues.requires_equipment,
-      chairs_qty: defaultValues.chairs_qty,
-      tables_qty: defaultValues.tables_qty,
-      projector: defaultValues.projector,
-      other_equipment: defaultValues.other_equipment,
-      setup_start_time: defaultValues.setup_start_time,
-      setup_end_time: defaultValues.setup_end_time,
-      setup_hours: defaultValues.setup_hours,
-      event_start_time: defaultValues.event_start_time,
-      event_end_time: defaultValues.event_end_time,
-      event_hours: defaultValues.event_hours,
-      cleanup_start_time: defaultValues.cleanup_start_time,
-      cleanup_end_time: defaultValues.cleanup_end_time,
-      cleanup_hours: defaultValues.cleanup_hours,
-      total_hours: defaultValues.total_hours,
-      multi_day_schedule: defaultValues.multi_day_schedule
-    });
+
+    // Fetch the updated event to return complete data
+    const [rows] = await pool.execute('SELECT * FROM events WHERE id = ?', [req.params.id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Event not found after update' });
+    }
+
+    // Parse JSON fields
+    const updatedEvent = rows[0];
+    if (updatedEvent.venues) {
+      try {
+        updatedEvent.venues = JSON.parse(updatedEvent.venues);
+      } catch (e) {
+        updatedEvent.venues = [];
+      }
+    } else {
+      updatedEvent.venues = [];
+    }
+    if (updatedEvent.equipment) {
+      try {
+        updatedEvent.equipment = JSON.parse(updatedEvent.equipment);
+      } catch (e) {
+        updatedEvent.equipment = [];
+      }
+    } else {
+      updatedEvent.equipment = [];
+    }
+
+    res.json(updatedEvent);
   } catch (error) {
     console.error('Error updating event:', error);
     res.status(500).json({ error: error.message });
