@@ -1,7 +1,22 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
 const { pool } = require('./database');
 
 const router = express.Router();
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ storage: storage });
 
 // GET /api/events - Get all events or filter by status
 router.get('/', async (req, res) => {
@@ -83,7 +98,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/events - Create new event with status pending and create notification
-router.post('/', async (req, res) => {
+router.post('/', upload.single('multi_day_schedule'), async (req, res) => {
   const {
     name,
     description,
@@ -145,7 +160,7 @@ router.post('/', async (req, res) => {
     cleanup_end_time: cleanup_end_time && cleanup_end_time.trim() !== '' ? cleanup_end_time : null,
     cleanup_hours: cleanup_hours ? parseFloat(cleanup_hours) || 0 : 0,
     total_hours: total_hours ? parseFloat(total_hours) || 0 : 0,
-    multi_day_schedule: multi_day_schedule || null
+    multi_day_schedule: req.file ? req.file.filename : multi_day_schedule || null
   };
 
   try {
@@ -228,7 +243,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/events/:id - Update event details
-router.put('/:id', async (req, res) => {
+router.put('/:id', upload.single('multi_day_schedule'), async (req, res) => {
   const {
     name,
     description,
@@ -290,7 +305,7 @@ router.put('/:id', async (req, res) => {
     cleanup_end_time: cleanup_end_time && cleanup_end_time.trim() !== '' ? cleanup_end_time : null,
     cleanup_hours: cleanup_hours ? parseFloat(cleanup_hours) || 0 : 0,
     total_hours: total_hours ? parseFloat(total_hours) || 0 : 0,
-    multi_day_schedule: multi_day_schedule || null
+    multi_day_schedule: req.file ? req.file.filename : multi_day_schedule || null
   };
 
   try {
