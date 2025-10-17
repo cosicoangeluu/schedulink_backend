@@ -1,29 +1,29 @@
 const rateLimit = require('express-rate-limit');
 
-// Memory store kullanarak rate limiting
+
 const createRateLimiter = (windowMs, max, message) => {
   return rateLimit({
-    windowMs: windowMs, // Zaman aralığı (ms)
-    max: max, // Maksimum istek sayısı
+    windowMs: windowMs,
+    max: max,
     message: {
       error: message
     },
-    standardHeaders: true, // Rate limit bilgilerini header'da döndür
-    legacyHeaders: false, // Eski header'ları kullanma
+    standardHeaders: true,
+    legacyHeaders: false,
   });
 };
 
-// Genel API rate limiter
+
 const apiLimiter = createRateLimiter(
-  15 * 60 * 1000, // 15 dakika
-  100, // 100 istek
+  15 * 60 * 1000,
+  100,
   'Too many requests from this IP, please try again later.'
 );
 
 // Strict rate limiter for sensitive operations
 const strictLimiter = createRateLimiter(
-  60 * 1000, // 1 dakika
-  10, // 10 istek
+  60 * 1000,
+  10,
   'Too many sensitive operations, please try again later.'
 );
 

@@ -284,8 +284,8 @@ router.put('/:id', upload.single('multi_day_schedule'), async (req, res) => {
   const defaultValues = {
     description: description || '',
     end_date: end_date && end_date.trim() !== '' ? end_date : null,
-    venues: venues || [],
-    equipment: equipment || [],
+    venues: venues ? JSON.parse(venues) : [],
+    equipment: equipment ? JSON.parse(equipment) : [],
     application_date: application_date && application_date.trim() !== '' ? application_date : null,
     rental_date: rental_date && rental_date.trim() !== '' ? rental_date : null,
     behalf_of: behalf_of || '',
