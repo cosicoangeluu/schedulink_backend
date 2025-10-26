@@ -9,24 +9,48 @@ CREATE TABLE IF NOT EXISTS events (
   description TEXT,
   start_date DATETIME NOT NULL,
   end_date DATETIME,
-  gymnasium BOOLEAN DEFAULT FALSE,
-  sports_area BOOLEAN DEFAULT FALSE,
+  venues JSON DEFAULT NULL,
+  equipment JSON DEFAULT NULL,
   application_date DATE,
   rental_date DATE,
   behalf_of VARCHAR(255),
   contact_info VARCHAR(255),
   nature_of_event TEXT,
+  requires_equipment BOOLEAN DEFAULT FALSE,
+  chairs_qty INT DEFAULT 0,
+  tables_qty INT DEFAULT 0,
+  projector BOOLEAN DEFAULT FALSE,
+  other_equipment TEXT,
+  setup_days INT DEFAULT 0,
+  setup_hours INT DEFAULT 0,
+  cleanup_hours INT DEFAULT 0,
+  total_hours INT DEFAULT 0,
+  multi_day_schedule VARCHAR(255),
   status ENUM('pending', 'approved', 'declined') DEFAULT 'pending',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Resources table
+-- Venues table
+CREATE TABLE IF NOT EXISTS venues (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  category VARCHAR(100) DEFAULT 'Venue',
+  availability BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Resources table (for equipment/materials)
 CREATE TABLE IF NOT EXISTS resources (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   description TEXT,
   category VARCHAR(100),
-  availability BOOLEAN DEFAULT TRUE,
+  total INT NOT NULL,
+  available INT NOT NULL,
+  location VARCHAR(255),
+  status VARCHAR(50) DEFAULT 'available',
+  `condition` VARCHAR(50) DEFAULT 'good',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -38,8 +62,7 @@ CREATE TABLE IF NOT EXISTS reports (
   eventId INT NOT NULL,
   filePath VARCHAR(255) NOT NULL,
   uploadedBy VARCHAR(50) NOT NULL,
-  uploadedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (eventId) REFERENCES events(id)
+  uploadedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Notifications table

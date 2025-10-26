@@ -1,20 +1,29 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const Joi = require('joi');
 const { pool } = require('./database');
+const { protect } = require('./authMiddleware');
 
 const router = express.Router();
 
+const loginSchema = Joi.object({
+  username: Joi.string().required(),
+  password: Joi.string().required(),
+});
+
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
-  const { username, password } = req.body;
-
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Username and password are required' });
+  const { error } = loginSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ error: error.details[0].message });
   }
+
+  const { username, password } = req.body;
 
   try {
     const [rows] = await pool.execute(
-      'SELECT password_hash FROM admins WHERE username = ?',
+      'SELECT id, password_hash FROM admins WHERE username = ?',
       [username]
     );
 
@@ -27,7 +36,11 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
 
-    res.json({ success: true, message: 'Login successful' });
+    const token = jwt.sign({ id: rows[0].id }, process.env.JWT_SECRET, {
+      expiresIn: '1h',
+    });
+
+    res.json({ success: true, message: 'Login successful', token });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -35,7 +48,7 @@ router.post('/login', async (req, res) => {
 });
 
 // GET /api/auth/admins - Get all admins
-router.get('/admins', async (req, res) => {
+router.get('/admins', protect, async (req, res) => {
   try {
     const [rows] = await pool.execute(
       'SELECT id, username, created_at FROM admins ORDER BY created_at DESC'
@@ -47,17 +60,19 @@ router.get('/admins', async (req, res) => {
   }
 });
 
+const adminSchema = Joi.object({
+  username: Joi.string().min(3).max(30).required(),
+  password: Joi.string().min(6).required(),
+});
+
 // POST /api/auth/admins - Add new admin
-router.post('/admins', async (req, res) => {
+router.post('/admins', protect, async (req, res) => {
+  const { error } = adminSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ error: error.details[0].message });
+  }
+
   const { username, password } = req.body;
-
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Username and password are required' });
-  }
-
-  if (password.length < 6) {
-    return res.status(400).json({ error: 'Password must be at least 6 characters long' });
-  }
 
   try {
     // Check if username already exists
@@ -91,18 +106,19 @@ router.post('/admins', async (req, res) => {
   }
 });
 
+const updateAdminSchema = Joi.object({
+  password: Joi.string().min(6).required(),
+});
+
 // PUT /api/auth/admins/:id - Update admin password
-router.put('/admins/:id', async (req, res) => {
+router.put('/admins/:id', protect, async (req, res) => {
+  const { error } = updateAdminSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ error: error.details[0].message });
+  }
+
   const { id } = req.params;
   const { password } = req.body;
-
-  if (!password) {
-    return res.status(400).json({ error: 'Password is required' });
-  }
-
-  if (password.length < 6) {
-    return res.status(400).json({ error: 'Password must be at least 6 characters long' });
-  }
 
   try {
     // Check if admin exists
@@ -133,7 +149,7 @@ router.put('/admins/:id', async (req, res) => {
 });
 
 // DELETE /api/auth/admins/:id - Delete admin
-router.delete('/admins/:id', async (req, res) => {
+router.delete('/admins/:id', protect, async (req, res) => {
   const { id } = req.params;
 
   try {

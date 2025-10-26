@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const morgan = require('morgan');
 const { initializeDatabase } = require('./database');
 const eventsRouter = require('./events');
 const notificationsRouter = require('./notifications');
@@ -9,21 +10,24 @@ const venuesRouter = require('./venues');
 const reportsRouter = require('./reports');
 const tasksRouter = require('./tasks');
 const authRouter = require('./auth');
+const { protect } = require('./authMiddleware');
 const { cache, clearCache } = require('./cache');
 const { apiLimiter, strictLimiter } = require('./rateLimit');
 const { addClient, removeClient } = require('./sse');
-
+const { notFound, errorHandler } = require('./errorMiddleware');
 
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev'));
+}
+
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
-// general rate limiting application
-app.use('/api/', apiLimiter);
 
 // Cache cleaning middleware - for POST, PUT, DELETE requests
 app.use('/api/', (req, res, next) => {
@@ -36,13 +40,13 @@ app.use('/api/', (req, res, next) => {
 // Caching middleware - for GET requests (5 minute cache)
 app.use('/api/', cache(300));
 
-app.use('/api/events', eventsRouter);
-app.use('/api/notifications', notificationsRouter);
-app.use('/api/resources', resourcesRouter);
-app.use('/api/venues', venuesRouter);
+app.use('/api/events', protect, eventsRouter);
+app.use('/api/notifications', protect, notificationsRouter);
+app.use('/api/resources', protect, resourcesRouter);
+app.use('/api/venues', protect, venuesRouter);
 
-app.use('/api/reports', reportsRouter);
-app.use('/api/tasks', tasksRouter);
+app.use('/api/reports', protect, reportsRouter);
+app.use('/api/tasks', protect, tasksRouter);
 app.use('/api/auth', authRouter);
 
 // SSE endpoint
@@ -63,6 +67,9 @@ app.get('/api/sse', (req, res) => {
 
   res.write('\n');
 });
+
+app.use(notFound);
+app.use(errorHandler);
 
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
