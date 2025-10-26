@@ -12,7 +12,7 @@ const tasksRouter = require('./tasks');
 const authRouter = require('./auth');
 const { protect } = require('./authMiddleware');
 const { cache, clearCache } = require('./cache');
-const { apiLimiter, strictLimiter } = require('./rateLimit');
+// const { apiLimiter, strictLimiter } = require('./rateLimit'); // Commented out to remove rate limiting
 const { addClient, removeClient } = require('./sse');
 const { notFound, errorHandler } = require('./errorMiddleware');
 
