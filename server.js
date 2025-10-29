@@ -41,8 +41,8 @@ app.use('/api/', cache(300));
 
 app.use('/api/events', eventsRouter);
 app.use('/api/notifications', protect, notificationsRouter);
-app.use('/api/resources', protect, resourcesRouter);
-app.use('/api/venues', protect, venuesRouter);
+app.use('/api/resources', resourcesRouter);
+app.use('/api/venues', venuesRouter);
 
 app.use('/api/reports', protect, reportsRouter);
 app.use('/api/tasks', protect, tasksRouter);
