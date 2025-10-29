@@ -12,7 +12,6 @@ const tasksRouter = require('./tasks');
 const authRouter = require('./auth');
 const { protect } = require('./authMiddleware');
 const { cache, clearCache } = require('./cache');
-// const { apiLimiter, strictLimiter } = require('./rateLimit'); // Commented out to remove rate limiting
 const { addClient, removeClient } = require('./sse');
 const { notFound, errorHandler } = require('./errorMiddleware');
 
@@ -40,7 +39,7 @@ app.use('/api/', (req, res, next) => {
 // Caching middleware - for GET requests (5 minute cache)
 app.use('/api/', cache(300));
 
-app.use('/api/events', protect, eventsRouter);
+app.use('/api/events', eventsRouter);
 app.use('/api/notifications', protect, notificationsRouter);
 app.use('/api/resources', protect, resourcesRouter);
 app.use('/api/venues', protect, venuesRouter);

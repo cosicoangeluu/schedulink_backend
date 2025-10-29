@@ -56,6 +56,12 @@ router.get('/', async (req, res) => {
       }
     });
 
+    // If no authentication (public access), only return approved events
+    if (!req.headers.authorization) {
+      const approvedEvents = rows.filter(event => event.status === 'approved');
+      return res.json(approvedEvents);
+    }
+
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -91,14 +97,23 @@ router.get('/:id', async (req, res) => {
       event.equipment = [];
     }
 
+    // If no authentication (public access), only allow viewing approved events
+    if (!req.headers.authorization && event.status !== 'approved') {
+      return res.status(403).json({ error: 'Access denied. Event not approved.' });
+    }
+
     res.json(event);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// POST /api/events - Create new event with status pending and create notification
+// POST /api/events - Create new event with status pending and create notification (requires authentication)
 router.post('/', upload.single('multi_day_schedule'), async (req, res) => {
+  // Check if user is authenticated
+  if (!req.headers.authorization) {
+    return res.status(401).json({ error: 'Authentication required to create events' });
+  }
   const {
     name,
     description,
@@ -243,8 +258,12 @@ router.post('/', upload.single('multi_day_schedule'), async (req, res) => {
   }
 });
 
-// PUT /api/events/:id - Update event details
+// PUT /api/events/:id - Update event details (requires authentication)
 router.put('/:id', upload.single('multi_day_schedule'), async (req, res) => {
+  // Check if user is authenticated
+  if (!req.headers.authorization) {
+    return res.status(401).json({ error: 'Authentication required to update events' });
+  }
   const {
     name,
     description,
@@ -381,8 +400,12 @@ router.put('/:id', upload.single('multi_day_schedule'), async (req, res) => {
   }
 });
 
-// DELETE /api/events/:id - Delete event and related records
+// DELETE /api/events/:id - Delete event and related records (requires authentication)
 router.delete('/:id', async (req, res) => {
+  // Check if user is authenticated
+  if (!req.headers.authorization) {
+    return res.status(401).json({ error: 'Authentication required to delete events' });
+  }
   try {
 
 
