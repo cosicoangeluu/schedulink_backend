@@ -78,8 +78,6 @@ async function initializeDatabase() {
       )
     `);
 
-
-
     await pool.execute(`
       CREATE TABLE IF NOT EXISTS reports (
         id INT AUTO_INCREMENT PRIMARY KEY,
