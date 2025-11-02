@@ -37,14 +37,20 @@ app.use('/api/', (req, res, next) => {
 });
 
 // Caching middleware - for GET requests (5 minute cache)
-app.use('/api/', cache(300));
+app.use('/api/', (req, res, next) => {
+  // Skip caching for reports endpoints to allow unauthenticated uploads
+  if (req.path.startsWith('/api/reports')) {
+    return next();
+  }
+  return cache(300)(req, res, next);
+});
 
 app.use('/api/events', eventsRouter);
 app.use('/api/notifications', protect, notificationsRouter);
 app.use('/api/resources', resourcesRouter);
 app.use('/api/venues', venuesRouter);
 
-app.use('/api/reports', protect, reportsRouter);
+app.use('/api/reports', reportsRouter);
 app.use('/api/tasks', protect, tasksRouter);
 app.use('/api/auth', authRouter);
 
