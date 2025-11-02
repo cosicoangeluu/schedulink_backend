@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { pool } = require('./database');
+const { protect } = require('./authMiddleware');
 
 const router = express.Router();
 
@@ -28,7 +29,7 @@ const upload = multer({
   }
 });
 
-// POST /api/reports/upload - Upload a narrative report PDF
+// POST /api/reports/upload - Upload a narrative report PDF (no auth required for students)
 router.post('/upload', upload.single('report'), async (req, res) => {
   try {
     const { eventId, uploadedBy } = req.body;
@@ -53,8 +54,8 @@ router.post('/upload', upload.single('report'), async (req, res) => {
   }
 });
 
-// GET /api/reports - Get all reports with file details
-router.get('/', async (req, res) => {
+// GET /api/reports - Get all reports with file details (admin only)
+router.get('/', protect, async (req, res) => {
   try {
     // Query all reports with event names, including reports for deleted events
     const [reports] = await pool.execute(`
@@ -94,8 +95,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/reports/files - Get all uploaded files with event info
-router.get('/files', async (req, res) => {
+// GET /api/reports/files - Get all uploaded files with event info (admin only)
+router.get('/files', protect, async (req, res) => {
   try {
     // Query all reports with event names and file details, including reports for deleted events
     const [reports] = await pool.execute(`
@@ -135,8 +136,8 @@ router.get('/files', async (req, res) => {
   }
 });
 
-// GET /api/reports/file/:id - Serve the uploaded file
-router.get('/file/:id', async (req, res) => {
+// GET /api/reports/file/:id - Serve the uploaded file (admin only)
+router.get('/file/:id', protect, async (req, res) => {
   try {
     const { id } = req.params;
     const [rows] = await pool.execute('SELECT filePath FROM reports WHERE id = ?', [id]);
@@ -154,8 +155,8 @@ router.get('/file/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/reports/:id - Delete a report and its file
-router.delete('/:id', async (req, res) => {
+// DELETE /api/reports/:id - Delete a report and its file (admin only)
+router.delete('/:id', protect, async (req, res) => {
   try {
     const { id } = req.params;
     console.log('Attempting to delete report with id:', id);
@@ -201,8 +202,8 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// GET /api/reports/sync - Sync existing files in uploads folder with database
-router.get('/sync', async (req, res) => {
+// GET /api/reports/sync - Sync existing files in uploads folder with database (admin only)
+router.get('/sync', protect, async (req, res) => {
   try {
     const uploadsDir = path.join(__dirname, 'uploads');
 
