@@ -45,6 +45,16 @@ CREATE TABLE IF NOT EXISTS events (
   cleanup_end_time TIME NULL,
   event_hours DECIMAL(5,2) DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  -- Personal Information Requirements Documents
+  valid_id_path VARCHAR(255),
+  birth_certificate_path VARCHAR(255),
+  tin_path VARCHAR(255),
+  marriage_certificate_path VARCHAR(255),
+  proof_of_address_path VARCHAR(255),
+  proof_of_income_path VARCHAR(255),
+  dti_path VARCHAR(255),
+  business_permit_path VARCHAR(255),
+  books_of_accounts_path VARCHAR(255),
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
