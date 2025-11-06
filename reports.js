@@ -11,25 +11,27 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 /**
- * @route   POST /api/reports/upload/:eventId
+ * @route   POST /api/reports/upload
  * @desc    Upload a report for a specific event
- * @access  Private (Student)
+ * @access  Private (Student/Admin)
  */
-router.post('/upload/:eventId', authenticateToken, upload.single('report'), async (req, res) => {
+router.post('/upload', upload.single('report'), async (req, res) => {
     if (!req.file) {
-        return res.status(400).send('No file uploaded.');
+        return res.status(400).json({ error: 'No file uploaded.' });
     }
 
-    const { eventId } = req.params;
-    const userId = req.user.id; // Assuming authenticateToken adds user to req
+    const { eventId, uploadedBy } = req.body;
+
+    if (!eventId || !uploadedBy) {
+        return res.status(400).json({ error: 'Missing eventId or uploadedBy' });
+    }
 
     try {
-        // Check if user is authorized to submit a report for this event
-        const [event] = await db.query('SELECT * FROM events WHERE id = ?', [eventId]);
-        if (!event || event.length === 0) {
-            return res.status(404).send('Event not found.');
+        // Check if event exists
+        const [eventResult] = await db.query('SELECT * FROM events WHERE id = ?', [eventId]);
+        if (!eventResult || eventResult.length === 0) {
+            return res.status(404).json({ error: 'Event not found.' });
         }
-        // Add more authorization logic if needed (e.g., is user part of the event)
 
         // Upload to Cloudinary
         const uploadStream = (buffer) => {
@@ -53,25 +55,27 @@ router.post('/upload/:eventId', authenticateToken, upload.single('report'), asyn
 
         // Save report metadata to database
         const { secure_url, public_id } = result;
-        const originalname = req.file.originalname;
+        const fileName = req.file.originalname;
+        const fileSize = req.file.size;
 
         const [insertResult] = await db.query(
-            'INSERT INTO reports (event_id, user_id, file_name, file_url, public_id) VALUES (?, ?, ?, ?, ?)',
-            [eventId, userId, originalname, secure_url, public_id]
+            'INSERT INTO reports (eventId, filePath, fileName, uploadedBy, uploadedAt) VALUES (?, ?, ?, ?, NOW())',
+            [eventId, secure_url, fileName, uploadedBy]
         );
 
         res.status(201).json({
             message: 'Report uploaded successfully',
             report: {
                 id: insertResult.insertId,
-                event_id: eventId,
-                file_name: originalname,
-                file_url: secure_url,
+                eventId: eventId,
+                fileName: fileName,
+                filePath: secure_url,
+                uploadedBy: uploadedBy,
             },
         });
     } catch (error) {
         console.error('Error uploading report:', error);
-        res.status(500).send('Server error');
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
@@ -86,11 +90,60 @@ router.get('/', authenticateToken, async (req, res) => {
         return res.status(403).send('Access denied.');
     }
     try {
-        const [reports] = await db.query('SELECT id, event_id, user_id, file_name, file_url, created_at FROM reports ORDER BY created_at DESC');
+        const [reports] = await db.query(`
+            SELECT
+                r.id,
+                r.eventId,
+                r.filePath,
+                r.fileName,
+                r.uploadedBy,
+                r.uploadedAt,
+                e.name as eventName,
+                0 as fileSize,
+                1 as exists
+            FROM reports r
+            LEFT JOIN events e ON r.eventId = e.id
+            ORDER BY r.uploadedAt DESC
+        `);
         res.json(reports);
     } catch (error) {
         console.error('Error fetching reports:', error);
         res.status(500).send('Server error');
+    }
+});
+
+/**
+ * @route   GET /api/reports/file/:id
+ * @desc    Get a report file
+ * @access  Private (Admin)
+ */
+router.get('/file/:id', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied.' });
+    }
+
+    const { id } = req.params;
+
+    try {
+        const [reportResult] = await db.query('SELECT filePath FROM reports WHERE id = ?', [id]);
+        if (reportResult.length === 0) {
+            return res.status(404).json({ error: 'Report not found.' });
+        }
+
+        const { filePath } = reportResult[0];
+
+        // Fetch the file from Cloudinary
+        const response = await fetch(filePath);
+        if (!response.ok) {
+            return res.status(404).json({ error: 'File not found.' });
+        }
+
+        const buffer = await response.buffer();
+        res.set('Content-Type', 'application/pdf');
+        res.send(buffer);
+    } catch (error) {
+        console.error('Error fetching report file:', error);
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
@@ -101,31 +154,25 @@ router.get('/', authenticateToken, async (req, res) => {
  */
 router.delete('/:id', authenticateToken, async (req, res) => {
     if (req.user.role !== 'admin') {
-        return res.status(403).send('Access denied.');
+        return res.status(403).json({ error: 'Access denied.' });
     }
 
     const { id } = req.params;
 
     try {
-        // Get report to find its public_id
-        const [reportResult] = await db.query('SELECT public_id FROM reports WHERE id = ?', [id]);
+        // Get report to find its filePath
+        const [reportResult] = await db.query('SELECT filePath FROM reports WHERE id = ?', [id]);
         if (reportResult.length === 0) {
-            return res.status(404).send('Report not found.');
-        }
-        const { public_id } = reportResult[0];
-
-        // Delete from Cloudinary
-        if (public_id) {
-            await cloudinary.uploader.destroy(public_id, { resource_type: 'raw' });
+            return res.status(404).json({ error: 'Report not found.' });
         }
 
         // Delete from database
         await db.query('DELETE FROM reports WHERE id = ?', [id]);
 
-        res.send('Report deleted successfully.');
+        res.json({ message: 'Report deleted successfully.' });
     } catch (error) {
         console.error('Error deleting report:', error);
-        res.status(500).send('Server error');
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
