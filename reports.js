@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('./db'); // Assuming you have a db connection module
+const db = require('./database.js'); // Assuming you have a db connection module
 const authenticateToken = require('./middleware/authenticateToken'); // Assuming JWT auth middleware
 const multer = require('multer');
 const { cloudinary } = require('./cloudinary');
