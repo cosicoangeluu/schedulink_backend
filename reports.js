@@ -4,7 +4,6 @@ const { pool } = require('./database.js');
 const { protect: authenticateToken } = require('./authMiddleware');
 const multer = require('multer');
 const { cloudinary } = require('./cloudinary');
-const { Readable } = require('stream');
 
 // Use memory storage for multer to avoid saving to disk before uploading to Cloudinary
 const storage = multer.memoryStorage();
@@ -17,51 +16,62 @@ const upload = multer({ storage: storage });
  */
 router.post('/upload', upload.single('report'), async (req, res) => {
     try {
+        console.log('Upload request received');
+        console.log('File:', req.file ? `${req.file.originalname} (${req.file.size} bytes)` : 'No file');
+        console.log('Body:', req.body);
+
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded.' });
         }
 
-        const eventId = req.body.eventId;
+        const eventId = parseInt(req.body.eventId, 10);
         const uploadedBy = req.body.uploadedBy;
 
         if (!eventId || !uploadedBy) {
+            console.error('Missing required fields:', { eventId, uploadedBy });
             return res.status(400).json({ error: 'Missing eventId or uploadedBy' });
         }
 
         // Check if event exists
         const [eventResult] = await pool.execute('SELECT * FROM events WHERE id = ?', [eventId]);
         if (!eventResult || eventResult.length === 0) {
+            console.error('Event not found:', eventId);
             return res.status(404).json({ error: 'Event not found.' });
         }
 
-        // Upload to Cloudinary
-        const uploadStream = (buffer) => {
-            return new Promise((resolve, reject) => {
-                const stream = cloudinary.uploader.upload_stream(
-                    { resource_type: 'raw', folder: 'reports' },
-                    (error, result) => {
-                        if (error) {
-                            reject(error);
-                        } else {
-                            resolve(result);
-                        }
-                    }
-                );
-                const readable = Readable.from(buffer);
-                readable.pipe(stream);
-            });
-        };
+        console.log('Uploading to Cloudinary...');
 
-        const result = await uploadStream(req.file.buffer);
+        // Upload to Cloudinary using buffer directly
+        const result = await new Promise((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream(
+                { resource_type: 'raw', folder: 'reports' },
+                (error, result) => {
+                    if (error) {
+                        console.error('Cloudinary upload error:', error);
+                        reject(error);
+                    } else {
+                        console.log('Cloudinary upload successful:', result.public_id);
+                        resolve(result);
+                    }
+                }
+            );
+
+            // Write the buffer to the stream and end it
+            stream.end(req.file.buffer);
+        });
 
         // Save report metadata to database
         const { secure_url } = result;
         const fileName = req.file.originalname;
 
+        console.log('Saving to database...');
+
         const [insertResult] = await pool.execute(
             'INSERT INTO reports (eventId, filePath, fileName, uploadedBy, uploadedAt) VALUES (?, ?, ?, ?, NOW())',
             [eventId, secure_url, fileName, uploadedBy]
         );
+
+        console.log('Report saved successfully with ID:', insertResult.insertId);
 
         res.status(201).json({
             message: 'Report uploaded successfully',
