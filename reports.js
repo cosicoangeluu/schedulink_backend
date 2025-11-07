@@ -135,7 +135,7 @@ router.get('/', async (req, res) => {
                 r.uploadedAt,
                 e.name as eventName,
                 0 as fileSize,
-                1 as exists
+                1 as \`exists\`
             FROM reports r
             LEFT JOIN events e ON r.eventId = e.id
             ORDER BY r.uploadedAt DESC
