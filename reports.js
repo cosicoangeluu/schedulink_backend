@@ -121,13 +121,9 @@ router.post('/upload', (req, res) => {
 /**
  * @route   GET /api/reports
  * @desc    Get all reports
- * @access  Private (Admin)
+ * @access  Public (Admin)
  */
-router.get('/', authenticateToken, async (req, res) => {
-    // Assuming only admins can see all reports
-    if (req.user.role !== 'admin') {
-        return res.status(403).send('Access denied.');
-    }
+router.get('/', async (req, res) => {
     try {
         const [reports] = await pool.execute(`
             SELECT
@@ -154,13 +150,9 @@ router.get('/', authenticateToken, async (req, res) => {
 /**
  * @route   GET /api/reports/file/:id
  * @desc    Get a report file
- * @access  Private (Admin)
+ * @access  Public (Admin)
  */
-router.get('/file/:id', authenticateToken, async (req, res) => {
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ error: 'Access denied.' });
-    }
-
+router.get('/file/:id', async (req, res) => {
     const { id } = req.params;
 
     try {
