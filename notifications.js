@@ -17,7 +17,11 @@ router.get('/', async (req, res) => {
     `);
     res.json(rows);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({
+      error: 'Failed to fetch notifications',
+      details: error.message
+    });
   }
 });
 

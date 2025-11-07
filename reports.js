@@ -7,30 +7,58 @@ const { cloudinary } = require('./cloudinary');
 
 // Use memory storage for multer to avoid saving to disk before uploading to Cloudinary
 const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+
+// Configure multer with file size limit and file type validation
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB limit
+    },
+    fileFilter: (req, file, cb) => {
+        // Accept only PDF files
+        if (file.mimetype === 'application/pdf') {
+            cb(null, true);
+        } else {
+            cb(new Error('Only PDF files are allowed!'), false);
+        }
+    }
+});
 
 /**
  * @route   POST /api/reports/upload
  * @desc    Upload a report for a specific event
  * @access  Public (Student/Admin)
  */
-router.post('/upload', upload.single('report'), async (req, res) => {
-    try {
-        console.log('Upload request received');
-        console.log('File:', req.file ? `${req.file.originalname} (${req.file.size} bytes)` : 'No file');
-        console.log('Body:', req.body);
-
-        if (!req.file) {
-            return res.status(400).json({ error: 'No file uploaded.' });
+router.post('/upload', (req, res) => {
+    upload.single('report')(req, res, async (err) => {
+        // Handle multer errors (file size, file type, etc.)
+        if (err instanceof multer.MulterError) {
+            console.error('Multer error:', err);
+            if (err.code === 'LIMIT_FILE_SIZE') {
+                return res.status(400).json({ error: 'File size exceeds 10MB limit.' });
+            }
+            return res.status(400).json({ error: `Upload error: ${err.message}` });
+        } else if (err) {
+            console.error('File filter error:', err);
+            return res.status(400).json({ error: err.message });
         }
 
-        const eventId = parseInt(req.body.eventId, 10);
-        const uploadedBy = req.body.uploadedBy;
+        try {
+            console.log('Upload request received');
+            console.log('File:', req.file ? `${req.file.originalname} (${req.file.size} bytes, ${req.file.mimetype})` : 'No file');
+            console.log('Body:', req.body);
 
-        if (!eventId || !uploadedBy) {
-            console.error('Missing required fields:', { eventId, uploadedBy });
-            return res.status(400).json({ error: 'Missing eventId or uploadedBy' });
-        }
+            if (!req.file) {
+                return res.status(400).json({ error: 'No file uploaded. Please select a PDF file.' });
+            }
+
+            const eventId = parseInt(req.body.eventId, 10);
+            const uploadedBy = req.body.uploadedBy;
+
+            if (!eventId || !uploadedBy) {
+                console.error('Missing required fields:', { eventId, uploadedBy });
+                return res.status(400).json({ error: 'Missing eventId or uploadedBy' });
+            }
 
         // Check if event exists
         const [eventResult] = await pool.execute('SELECT * FROM events WHERE id = ?', [eventId]);
@@ -83,10 +111,11 @@ router.post('/upload', upload.single('report'), async (req, res) => {
                 uploadedBy: uploadedBy,
             },
         });
-    } catch (error) {
-        console.error('Error uploading report:', error);
-        res.status(500).json({ error: 'Server error', details: error.message });
-    }
+        } catch (error) {
+            console.error('Error uploading report:', error);
+            res.status(500).json({ error: 'Server error', details: error.message });
+        }
+    });
 });
 
 /**
