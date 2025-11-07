@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('./database.js'); // Assuming you have a db connection module
+const { pool } = require('./database.js');
 const { protect: authenticateToken } = require('./authMiddleware');
 const multer = require('multer');
 const { cloudinary } = require('./cloudinary');
@@ -13,22 +13,23 @@ const upload = multer({ storage: storage });
 /**
  * @route   POST /api/reports/upload
  * @desc    Upload a report for a specific event
- * @access  Private (Student/Admin)
+ * @access  Public (Student/Admin)
  */
 router.post('/upload', upload.single('report'), async (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded.' });
-    }
-
-    const { eventId, uploadedBy } = req.body;
-
-    if (!eventId || !uploadedBy) {
-        return res.status(400).json({ error: 'Missing eventId or uploadedBy' });
-    }
-
     try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded.' });
+        }
+
+        const eventId = req.body.eventId;
+        const uploadedBy = req.body.uploadedBy;
+
+        if (!eventId || !uploadedBy) {
+            return res.status(400).json({ error: 'Missing eventId or uploadedBy' });
+        }
+
         // Check if event exists
-        const [eventResult] = await db.query('SELECT * FROM events WHERE id = ?', [eventId]);
+        const [eventResult] = await pool.execute('SELECT * FROM events WHERE id = ?', [eventId]);
         if (!eventResult || eventResult.length === 0) {
             return res.status(404).json({ error: 'Event not found.' });
         }
@@ -54,11 +55,10 @@ router.post('/upload', upload.single('report'), async (req, res) => {
         const result = await uploadStream(req.file.buffer);
 
         // Save report metadata to database
-        const { secure_url, public_id } = result;
+        const { secure_url } = result;
         const fileName = req.file.originalname;
-        const fileSize = req.file.size;
 
-        const [insertResult] = await db.query(
+        const [insertResult] = await pool.execute(
             'INSERT INTO reports (eventId, filePath, fileName, uploadedBy, uploadedAt) VALUES (?, ?, ?, ?, NOW())',
             [eventId, secure_url, fileName, uploadedBy]
         );
@@ -75,7 +75,7 @@ router.post('/upload', upload.single('report'), async (req, res) => {
         });
     } catch (error) {
         console.error('Error uploading report:', error);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ error: 'Server error', details: error.message });
     }
 });
 
@@ -90,7 +90,7 @@ router.get('/', authenticateToken, async (req, res) => {
         return res.status(403).send('Access denied.');
     }
     try {
-        const [reports] = await db.query(`
+        const [reports] = await pool.execute(`
             SELECT
                 r.id,
                 r.eventId,
@@ -125,7 +125,7 @@ router.get('/file/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
 
     try {
-        const [reportResult] = await db.query('SELECT filePath FROM reports WHERE id = ?', [id]);
+        const [reportResult] = await pool.execute('SELECT filePath FROM reports WHERE id = ?', [id]);
         if (reportResult.length === 0) {
             return res.status(404).json({ error: 'Report not found.' });
         }
@@ -161,13 +161,13 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 
     try {
         // Get report to find its filePath
-        const [reportResult] = await db.query('SELECT filePath FROM reports WHERE id = ?', [id]);
+        const [reportResult] = await pool.execute('SELECT filePath FROM reports WHERE id = ?', [id]);
         if (reportResult.length === 0) {
             return res.status(404).json({ error: 'Report not found.' });
         }
 
         // Delete from database
-        await db.query('DELETE FROM reports WHERE id = ?', [id]);
+        await pool.execute('DELETE FROM reports WHERE id = ?', [id]);
 
         res.json({ message: 'Report deleted successfully.' });
     } catch (error) {

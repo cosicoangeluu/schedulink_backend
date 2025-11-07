@@ -82,7 +82,8 @@ async function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS reports (
         id INT AUTO_INCREMENT PRIMARY KEY,
         eventId INT NOT NULL,
-        filePath VARCHAR(255) NOT NULL,
+        filePath VARCHAR(500) NOT NULL,
+        fileName VARCHAR(255),
         uploadedBy VARCHAR(50) NOT NULL,
         uploadedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
