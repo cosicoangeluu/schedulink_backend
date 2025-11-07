@@ -23,7 +23,12 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:3000', 'https://schedulink.ccsdepartment.com'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control']
+}));
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 app.use('/uploads/personal_info', express.static('uploads/personal_info'));
