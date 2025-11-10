@@ -205,6 +205,73 @@ router.get('/debug/:id', async (req, res) => {
 });
 
 /**
+ * @route   GET /api/reports/download/:id
+ * @desc    Download a report file (forces download)
+ * @access  Public (Admin)
+ */
+router.get('/download/:id', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        console.log('Downloading report file with ID:', id);
+
+        const [reportResult] = await pool.execute('SELECT filePath, fileName FROM reports WHERE id = ?', [id]);
+        if (reportResult.length === 0) {
+            console.error('Report not found in database:', id);
+            return res.status(404).json({ error: 'Report not found.' });
+        }
+
+        const { filePath, fileName } = reportResult[0];
+        console.log('Cloudinary file path:', filePath);
+
+        if (!filePath) {
+            console.error('File path is null or undefined');
+            return res.status(404).json({ error: 'File path not found in database.' });
+        }
+
+        // Fetch the file from Cloudinary
+        console.log('Fetching file from Cloudinary for download...');
+        const response = await fetch(filePath);
+        console.log('Cloudinary response status:', response.status, response.statusText);
+
+        if (!response.ok) {
+            console.error('Cloudinary fetch failed:', response.status, response.statusText);
+            const errorText = await response.text().catch(() => 'Unable to read error');
+            console.error('Cloudinary error response:', errorText);
+            return res.status(404).json({ error: `File not found on Cloudinary. Status: ${response.status}` });
+        }
+
+        // Convert to Buffer
+        let buffer;
+        if (response.buffer && typeof response.buffer === 'function') {
+            buffer = await response.buffer();
+        } else {
+            const arrayBuffer = await response.arrayBuffer();
+            buffer = Buffer.from(arrayBuffer);
+        }
+
+        console.log('File fetched successfully. Size:', buffer.length, 'bytes');
+
+        // Use attachment to force download
+        const downloadFileName = fileName || 'report.pdf';
+        res.set('Content-Type', 'application/pdf');
+        res.set('Content-Length', buffer.length.toString());
+        res.set('Content-Disposition', `attachment; filename="${downloadFileName}"`);
+        res.set('Cache-Control', 'public, max-age=31536000');
+
+        res.send(buffer);
+    } catch (error) {
+        console.error('Error downloading report file:', error);
+        console.error('Error message:', error.message);
+        res.status(500).json({
+            error: 'Server error',
+            details: error.message,
+            errorType: error.name
+        });
+    }
+});
+
+/**
  * @route   GET /api/reports/file/:id
  * @desc    Get a report file
  * @access  Public (Admin)
