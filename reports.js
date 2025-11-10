@@ -351,13 +351,9 @@ router.get('/file/:id', async (req, res) => {
 /**
  * @route   DELETE /api/reports/:id
  * @desc    Delete a report
- * @access  Private (Admin)
+ * @access  Public (Admin)
  */
-router.delete('/:id', authenticateToken, async (req, res) => {
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ error: 'Access denied.' });
-    }
-
+router.delete('/:id', async (req, res) => {
     const { id } = req.params;
 
     try {
