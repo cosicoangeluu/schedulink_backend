@@ -4,6 +4,7 @@ const { pool } = require('./database.js');
 const { protect: authenticateToken } = require('./authMiddleware');
 const multer = require('multer');
 const { cloudinary } = require('./cloudinary');
+const fetch = require('node-fetch');
 
 // Use memory storage for multer to avoid saving to disk before uploading to Cloudinary
 const storage = multer.memoryStorage();
@@ -180,8 +181,14 @@ router.get('/file/:id', async (req, res) => {
 
         if (!response.ok) {
             console.error('Cloudinary fetch failed:', response.status, response.statusText);
+            const errorText = await response.text().catch(() => 'Unable to read error');
+            console.error('Cloudinary error response:', errorText);
             return res.status(404).json({ error: `File not found on Cloudinary. Status: ${response.status}` });
         }
+
+        // Get content type from Cloudinary response
+        const contentType = response.headers.get('content-type') || 'application/pdf';
+        console.log('Content-Type from Cloudinary:', contentType);
 
         // Convert arrayBuffer to Buffer (node-fetch v3 compatibility)
         console.log('Converting file to buffer...');
@@ -189,8 +196,13 @@ router.get('/file/:id', async (req, res) => {
         const buffer = Buffer.from(arrayBuffer);
 
         console.log('File fetched successfully. Size:', buffer.length, 'bytes');
-        res.set('Content-Type', 'application/pdf');
+
+        // Set appropriate headers
+        res.set('Content-Type', contentType);
+        res.set('Content-Length', buffer.length.toString());
         res.set('Content-Disposition', 'inline');
+        res.set('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+
         res.send(buffer);
     } catch (error) {
         console.error('Error fetching report file:', error);
