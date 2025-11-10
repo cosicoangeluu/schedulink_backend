@@ -4,7 +4,9 @@ const { pool } = require('./database.js');
 const { protect: authenticateToken } = require('./authMiddleware');
 const multer = require('multer');
 const { cloudinary } = require('./cloudinary');
-const fetch = require('node-fetch');
+
+// Use global fetch if available (Node 18+), otherwise use node-fetch v2
+const fetch = globalThis.fetch || require('node-fetch');
 
 // Use memory storage for multer to avoid saving to disk before uploading to Cloudinary
 const storage = multer.memoryStorage();
@@ -149,6 +151,60 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * @route   GET /api/reports/debug/:id
+ * @desc    Debug endpoint to check file info without downloading
+ * @access  Public
+ */
+router.get('/debug/:id', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        console.log('Debug: Checking report file with ID:', id);
+
+        const [reportResult] = await pool.execute('SELECT * FROM reports WHERE id = ?', [id]);
+        if (reportResult.length === 0) {
+            return res.json({ error: 'Report not found in database', id });
+        }
+
+        const report = reportResult[0];
+        console.log('Debug: Report data:', report);
+
+        // Try to fetch from Cloudinary
+        if (report.filePath) {
+            try {
+                const response = await fetch(report.filePath);
+                const cloudinaryStatus = {
+                    url: report.filePath,
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: Object.fromEntries(response.headers.entries()),
+                    ok: response.ok
+                };
+                console.log('Debug: Cloudinary status:', cloudinaryStatus);
+                return res.json({
+                    report,
+                    cloudinary: cloudinaryStatus,
+                    fetchAvailable: typeof fetch !== 'undefined',
+                    nodeVersion: process.version
+                });
+            } catch (fetchError) {
+                return res.json({
+                    report,
+                    cloudinary: { error: fetchError.message, stack: fetchError.stack },
+                    fetchAvailable: typeof fetch !== 'undefined',
+                    nodeVersion: process.version
+                });
+            }
+        } else {
+            return res.json({ report, error: 'No filePath in database' });
+        }
+    } catch (error) {
+        console.error('Debug error:', error);
+        res.json({ error: error.message, stack: error.stack, nodeVersion: process.version });
+    }
+});
+
+/**
  * @route   GET /api/reports/file/:id
  * @desc    Get a report file
  * @access  Public (Admin)
@@ -190,10 +246,19 @@ router.get('/file/:id', async (req, res) => {
         const contentType = response.headers.get('content-type') || 'application/pdf';
         console.log('Content-Type from Cloudinary:', contentType);
 
-        // Convert arrayBuffer to Buffer (node-fetch v3 compatibility)
+        // Convert to Buffer (works with both global fetch and node-fetch)
         console.log('Converting file to buffer...');
-        const arrayBuffer = await response.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        let buffer;
+        if (response.buffer && typeof response.buffer === 'function') {
+            // node-fetch v2 has .buffer() method
+            console.log('Using node-fetch .buffer() method');
+            buffer = await response.buffer();
+        } else {
+            // global fetch (Node 18+) uses .arrayBuffer()
+            console.log('Using global fetch .arrayBuffer() method');
+            const arrayBuffer = await response.arrayBuffer();
+            buffer = Buffer.from(arrayBuffer);
+        }
 
         console.log('File fetched successfully. Size:', buffer.length, 'bytes');
 
@@ -206,7 +271,15 @@ router.get('/file/:id', async (req, res) => {
         res.send(buffer);
     } catch (error) {
         console.error('Error fetching report file:', error);
-        res.status(500).json({ error: 'Server error', details: error.message });
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+        res.status(500).json({
+            error: 'Server error',
+            details: error.message,
+            errorType: error.name,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 });
 
