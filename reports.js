@@ -156,25 +156,45 @@ router.get('/file/:id', async (req, res) => {
     const { id } = req.params;
 
     try {
+        console.log('Fetching report file with ID:', id);
+
         const [reportResult] = await pool.execute('SELECT filePath FROM reports WHERE id = ?', [id]);
         if (reportResult.length === 0) {
+            console.error('Report not found in database:', id);
             return res.status(404).json({ error: 'Report not found.' });
         }
 
         const { filePath } = reportResult[0];
+        console.log('Cloudinary file path:', filePath);
 
-        // Fetch the file from Cloudinary
-        const response = await fetch(filePath);
-        if (!response.ok) {
-            return res.status(404).json({ error: 'File not found.' });
+        // Validate that filePath exists
+        if (!filePath) {
+            console.error('File path is null or undefined');
+            return res.status(404).json({ error: 'File path not found in database.' });
         }
 
-        const buffer = await response.buffer();
+        // Fetch the file from Cloudinary
+        console.log('Fetching file from Cloudinary...');
+        const response = await fetch(filePath);
+        console.log('Cloudinary response status:', response.status, response.statusText);
+
+        if (!response.ok) {
+            console.error('Cloudinary fetch failed:', response.status, response.statusText);
+            return res.status(404).json({ error: `File not found on Cloudinary. Status: ${response.status}` });
+        }
+
+        // Convert arrayBuffer to Buffer (node-fetch v3 compatibility)
+        console.log('Converting file to buffer...');
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        console.log('File fetched successfully. Size:', buffer.length, 'bytes');
         res.set('Content-Type', 'application/pdf');
+        res.set('Content-Disposition', 'inline');
         res.send(buffer);
     } catch (error) {
         console.error('Error fetching report file:', error);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ error: 'Server error', details: error.message });
     }
 });
 
