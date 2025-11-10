@@ -242,10 +242,6 @@ router.get('/file/:id', async (req, res) => {
             return res.status(404).json({ error: `File not found on Cloudinary. Status: ${response.status}` });
         }
 
-        // Get content type from Cloudinary response
-        const contentType = response.headers.get('content-type') || 'application/pdf';
-        console.log('Content-Type from Cloudinary:', contentType);
-
         // Convert to Buffer (works with both global fetch and node-fetch)
         console.log('Converting file to buffer...');
         let buffer;
@@ -262,11 +258,13 @@ router.get('/file/:id', async (req, res) => {
 
         console.log('File fetched successfully. Size:', buffer.length, 'bytes');
 
-        // Set appropriate headers
-        res.set('Content-Type', contentType);
+        // Force PDF content type since we only allow PDF uploads
+        // Cloudinary serves raw files as application/octet-stream
+        res.set('Content-Type', 'application/pdf');
         res.set('Content-Length', buffer.length.toString());
-        res.set('Content-Disposition', 'inline');
-        res.set('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+        res.set('Content-Disposition', 'inline; filename="report.pdf"');
+        res.set('Accept-Ranges', 'bytes');
+        res.set('Cache-Control', 'public, max-age=31536000');
 
         res.send(buffer);
     } catch (error) {
