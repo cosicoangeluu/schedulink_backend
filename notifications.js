@@ -52,10 +52,10 @@ router.put('/:id/approve', async (req, res) => {
         venueIds = [];
       }
 
-      // Check for conflicts with already approved events
+      // Check for conflicts with already approved events (using only event times, not setup/cleanup)
       if (venueIds.length > 0 && event.event_start_time && event.event_end_time) {
-        const eventStartTime = event.setup_start_time || event.event_start_time;
-        const eventEndTime = event.cleanup_end_time || event.event_end_time;
+        const eventStartTime = event.event_start_time;
+        const eventEndTime = event.event_end_time;
 
         // Find conflicting approved events
         const [conflictingEvents] = await pool.execute(`
@@ -85,8 +85,8 @@ router.put('/:id/approve', async (req, res) => {
           const commonVenues = venueIds.filter(v => existingVenues.includes(v));
           if (commonVenues.length === 0) continue;
 
-          const existingStartTime = existingEvent.setup_start_time || existingEvent.event_start_time;
-          const existingEndTime = existingEvent.cleanup_end_time || existingEvent.event_end_time;
+          const existingStartTime = existingEvent.event_start_time;
+          const existingEndTime = existingEvent.event_end_time;
 
           if (existingStartTime && existingEndTime) {
             // Convert times to minutes for comparison
@@ -152,8 +152,8 @@ router.put('/:id/approve', async (req, res) => {
           const commonVenues = venueIds.filter(v => pendingVenues.includes(v));
           if (commonVenues.length === 0) continue;
 
-          const pendingStartTime = pendingEvent.setup_start_time || pendingEvent.event_start_time;
-          const pendingEndTime = pendingEvent.cleanup_end_time || pendingEvent.event_end_time;
+          const pendingStartTime = pendingEvent.event_start_time;
+          const pendingEndTime = pendingEvent.event_end_time;
 
           if (pendingStartTime && pendingEndTime) {
             const timeToMinutes = (timeStr) => {
