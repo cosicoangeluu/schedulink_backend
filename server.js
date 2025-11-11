@@ -52,7 +52,7 @@ app.use('/api/', (req, res, next) => {
 });
 
 app.use('/api/events', eventsRouter);
-app.use('/api/notifications', protect, notificationsRouter);
+app.use('/api/notifications', notificationsRouter);
 app.use('/api/resources', resourcesRouter);
 app.use('/api/venues', venuesRouter);
 
