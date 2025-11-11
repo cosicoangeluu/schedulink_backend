@@ -88,9 +88,20 @@ async function checkEventConflicts(eventData, excludeEventId = null) {
     const existingEndTime = existingEvent.cleanup_end_time || existingEvent.event_end_time;
 
     if (existingStartTime && existingEndTime) {
+      // Convert times to comparable format (minutes since midnight)
+      const timeToMinutes = (timeStr) => {
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        return hours * 60 + minutes;
+      };
+
+      const eventStartMinutes = timeToMinutes(eventStartTime);
+      const eventEndMinutes = timeToMinutes(eventEndTime);
+      const existingStartMinutes = timeToMinutes(existingStartTime);
+      const existingEndMinutes = timeToMinutes(existingEndTime);
+
       // Check if times overlap
       // Times overlap if: (start1 < end2) AND (end1 > start2)
-      if (eventStartTime < existingEndTime && eventEndTime > existingStartTime) {
+      if (eventStartMinutes < existingEndMinutes && eventEndMinutes > existingStartMinutes) {
         // Get venue names for the conflicting venues
         const [venueRows] = await pool.execute(
           `SELECT id, name FROM venues WHERE id IN (${commonVenues.join(',')})`,
