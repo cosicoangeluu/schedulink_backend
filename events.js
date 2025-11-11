@@ -276,9 +276,10 @@ router.post('/', upload.single('multi_day_schedule'), async (req, res) => {
     return res.status(400).json({ error: 'Event name and start date are required' });
   }
 
-  // Check for conflicts before creating the event
+  // Check for conflicts before creating the event (but don't block creation)
+  let detectedConflicts = [];
   try {
-    const conflicts = await checkEventConflicts({
+    detectedConflicts = await checkEventConflicts({
       start_date,
       end_date,
       venues,
@@ -287,17 +288,9 @@ router.post('/', upload.single('multi_day_schedule'), async (req, res) => {
       setup_start_time,
       cleanup_end_time
     });
-
-    if (conflicts.length > 0) {
-      return res.status(409).json({
-        error: 'Event conflict detected',
-        message: 'This event conflicts with existing approved events at the same venue and time',
-        conflicts
-      });
-    }
   } catch (conflictError) {
     console.error('Error checking conflicts:', conflictError);
-    // Continue with creation if conflict check fails (to avoid blocking)
+    // Continue with creation if conflict check fails
   }
 
   // Set default values for optional fields
@@ -366,9 +359,17 @@ router.post('/', upload.single('multi_day_schedule'), async (req, res) => {
     const eventId = result.insertId;
 
     // Create notification
+    let notificationMessage = `New event "${name}" requires approval`;
+
+    // If conflicts were detected, add conflict information to notification
+    if (detectedConflicts.length > 0) {
+      const conflictEventNames = detectedConflicts.map(c => c.eventName).join(', ');
+      notificationMessage = `New event "${name}" requires approval - CONFLICT DETECTED: This event conflicts with: ${conflictEventNames}`;
+    }
+
     await pool.execute(
       'INSERT INTO notifications (type, message, eventId, status) VALUES (?, ?, ?, ?)',
-      ['event_approval', `New event "${name}" requires approval`, eventId, 'pending']
+      ['event_approval', notificationMessage, eventId, 'pending']
     );
 
     res.status(201).json({
@@ -401,7 +402,9 @@ router.post('/', upload.single('multi_day_schedule'), async (req, res) => {
       total_hours: defaultValues.total_hours,
       multi_day_schedule: defaultValues.multi_day_schedule,
       status: 'pending',
-      created_at: new Date()
+      created_at: new Date(),
+      conflicts: detectedConflicts.length > 0 ? detectedConflicts : undefined,
+      hasConflict: detectedConflicts.length > 0
     });
   } catch (error) {
     console.error('Error creating event:', error);
