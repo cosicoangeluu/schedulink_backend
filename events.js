@@ -18,6 +18,122 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
+// Helper function to check for event conflicts
+async function checkEventConflicts(eventData, excludeEventId = null) {
+  const { start_date, end_date, venues, event_start_time, event_end_time, setup_start_time, cleanup_end_time } = eventData;
+
+  // Parse venues if it's a string
+  const venueIds = typeof venues === 'string' ? JSON.parse(venues) : venues;
+
+  if (!venueIds || venueIds.length === 0) {
+    return []; // No venues to check
+  }
+
+  // Determine the full time range including setup and cleanup
+  const eventStartTime = setup_start_time || event_start_time;
+  const eventEndTime = cleanup_end_time || event_end_time;
+
+  if (!eventStartTime || !eventEndTime) {
+    return []; // Cannot check conflicts without times
+  }
+
+  // Build query to find overlapping events
+  let query = `
+    SELECT e.*, e.id as event_id, e.name as event_name, e.venues as event_venues
+    FROM events e
+    WHERE e.status = 'approved'
+  `;
+
+  const params = [];
+
+  // Exclude current event if updating
+  if (excludeEventId) {
+    query += ` AND e.id != ?`;
+    params.push(excludeEventId);
+  }
+
+  // Check date overlap: events overlap if they occur on the same date
+  // For single-day events, check if start_date matches
+  // For multi-day events, check if date ranges overlap
+  query += ` AND (
+    (DATE(e.start_date) = DATE(?) OR
+     (e.end_date IS NOT NULL AND DATE(?) BETWEEN DATE(e.start_date) AND DATE(e.end_date)) OR
+     (e.end_date IS NOT NULL AND ? IS NOT NULL AND DATE(e.start_date) BETWEEN DATE(?) AND DATE(?)))
+  )`;
+  params.push(start_date, start_date, end_date, start_date, end_date);
+
+  const [events] = await pool.execute(query, params);
+
+  // Filter events that have venue and time conflicts
+  const conflicts = [];
+
+  for (const existingEvent of events) {
+    // Parse existing event venues
+    let existingVenues = [];
+    try {
+      existingVenues = existingEvent.event_venues ? JSON.parse(existingEvent.event_venues) : [];
+    } catch (e) {
+      existingVenues = [];
+    }
+
+    // Check if there's any common venue
+    const commonVenues = venueIds.filter(v => existingVenues.includes(v));
+
+    if (commonVenues.length === 0) {
+      continue; // No venue conflict, skip to next event
+    }
+
+    // Check time overlap
+    const existingStartTime = existingEvent.setup_start_time || existingEvent.event_start_time;
+    const existingEndTime = existingEvent.cleanup_end_time || existingEvent.event_end_time;
+
+    if (existingStartTime && existingEndTime) {
+      // Check if times overlap
+      // Times overlap if: (start1 < end2) AND (end1 > start2)
+      if (eventStartTime < existingEndTime && eventEndTime > existingStartTime) {
+        // Get venue names for the conflicting venues
+        const [venueRows] = await pool.execute(
+          `SELECT id, name FROM venues WHERE id IN (${commonVenues.join(',')})`,
+          []
+        );
+
+        conflicts.push({
+          eventId: existingEvent.event_id,
+          eventName: existingEvent.event_name,
+          date: existingEvent.start_date,
+          startTime: existingStartTime,
+          endTime: existingEndTime,
+          conflictingVenues: venueRows
+        });
+      }
+    }
+  }
+
+  return conflicts;
+}
+
+// POST /api/events/check-conflicts - Check for event conflicts
+router.post('/check-conflicts', async (req, res) => {
+  try {
+    const { start_date, end_date, venues, event_start_time, event_end_time, setup_start_time, cleanup_end_time, excludeEventId } = req.body;
+
+    const conflicts = await checkEventConflicts({
+      start_date,
+      end_date,
+      venues,
+      event_start_time,
+      event_end_time,
+      setup_start_time,
+      cleanup_end_time
+    }, excludeEventId);
+
+    res.json({ conflicts });
+  } catch (error) {
+    console.error('Error checking conflicts:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // GET /api/events - Get all events or filter by status
 router.get('/', async (req, res) => {
   try {
@@ -147,6 +263,30 @@ router.post('/', upload.single('multi_day_schedule'), async (req, res) => {
   // Validate required fields
   if (!name || !start_date) {
     return res.status(400).json({ error: 'Event name and start date are required' });
+  }
+
+  // Check for conflicts before creating the event
+  try {
+    const conflicts = await checkEventConflicts({
+      start_date,
+      end_date,
+      venues,
+      event_start_time,
+      event_end_time,
+      setup_start_time,
+      cleanup_end_time
+    });
+
+    if (conflicts.length > 0) {
+      return res.status(409).json({
+        error: 'Event conflict detected',
+        message: 'This event conflicts with existing approved events at the same venue and time',
+        conflicts
+      });
+    }
+  } catch (conflictError) {
+    console.error('Error checking conflicts:', conflictError);
+    // Continue with creation if conflict check fails (to avoid blocking)
   }
 
   // Set default values for optional fields
@@ -297,6 +437,30 @@ router.put('/:id', upload.single('multi_day_schedule'), async (req, res) => {
   // Validate required fields
   if (!name || !start_date) {
     return res.status(400).json({ error: 'Event name and start date are required' });
+  }
+
+  // Check for conflicts before updating the event (excluding the current event)
+  try {
+    const conflicts = await checkEventConflicts({
+      start_date,
+      end_date,
+      venues,
+      event_start_time,
+      event_end_time,
+      setup_start_time,
+      cleanup_end_time
+    }, req.params.id);
+
+    if (conflicts.length > 0) {
+      return res.status(409).json({
+        error: 'Event conflict detected',
+        message: 'This event conflicts with existing approved events at the same venue and time',
+        conflicts
+      });
+    }
+  } catch (conflictError) {
+    console.error('Error checking conflicts:', conflictError);
+    // Continue with update if conflict check fails (to avoid blocking)
   }
 
   // Set default values for optional fields
