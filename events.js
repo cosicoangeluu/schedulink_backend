@@ -22,8 +22,20 @@ const upload = multer({ storage: storage });
 async function checkEventConflicts(eventData, excludeEventId = null) {
   const { start_date, end_date, venues, event_start_time, event_end_time, setup_start_time, cleanup_end_time } = eventData;
 
+  console.log('=== START CONFLICT CHECK ===');
+  console.log('Event data received:', {
+    start_date,
+    end_date,
+    venues,
+    event_start_time,
+    event_end_time,
+    excludeEventId
+  });
+
   // Parse venues if it's a string
   const venueIds = typeof venues === 'string' ? JSON.parse(venues) : venues;
+
+  console.log('Parsed venue IDs:', venueIds);
 
   if (!venueIds || venueIds.length === 0) {
     return []; // No venues to check
@@ -64,10 +76,13 @@ async function checkEventConflicts(eventData, excludeEventId = null) {
 
   const [events] = await pool.execute(query, params);
 
+  console.log(`Found ${events.length} approved events on the same date`);
+
   // Filter events that have venue and time conflicts
   const conflicts = [];
 
   for (const existingEvent of events) {
+    console.log('Checking event:', existingEvent.event_name, 'ID:', existingEvent.event_id);
     // Parse existing event venues
     let existingVenues = [];
     try {
@@ -79,9 +94,18 @@ async function checkEventConflicts(eventData, excludeEventId = null) {
     // Check if there's any common venue
     const commonVenues = venueIds.filter(v => existingVenues.includes(v));
 
+    console.log('Venue check:', {
+      newEventVenues: venueIds,
+      existingEventVenues: existingVenues,
+      commonVenues: commonVenues
+    });
+
     if (commonVenues.length === 0) {
+      console.log('No common venues, skipping');
       continue; // No venue conflict, skip to next event
     }
+
+    console.log('Common venues found, checking times...');
 
     // Check time overlap - use only event times (NOT setup or cleanup times)
     const existingStartTime = existingEvent.event_start_time;
@@ -101,12 +125,23 @@ async function checkEventConflicts(eventData, excludeEventId = null) {
 
       // Check if times overlap
       // Times overlap if: (start1 < end2) AND (end1 > start2)
+      console.log('Comparing times:', {
+        newEvent: { start: eventStartMinutes, end: eventEndMinutes },
+        existingEvent: { start: existingStartMinutes, end: existingEndMinutes, name: existingEvent.event_name },
+        overlaps: eventStartMinutes < existingEndMinutes && eventEndMinutes > existingStartMinutes
+      });
+
       if (eventStartMinutes < existingEndMinutes && eventEndMinutes > existingStartMinutes) {
         // Get venue names for the conflicting venues
         const [venueRows] = await pool.execute(
           `SELECT id, name FROM venues WHERE id IN (${commonVenues.join(',')})`,
           []
         );
+
+        console.log('CONFLICT DETECTED:', {
+          eventName: existingEvent.event_name,
+          venues: venueRows.map(v => v.name)
+        });
 
         conflicts.push({
           eventId: existingEvent.event_id,
@@ -148,10 +183,34 @@ router.post('/check-conflicts', async (req, res) => {
     }, excludeEventId);
 
     console.log('Conflicts found:', conflicts.length);
+    console.log('=== END CONFLICT CHECK ===\n');
 
     res.json({ conflicts });
   } catch (error) {
     console.error('Error checking conflicts:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/events/debug-approved - Debug endpoint to see all approved events
+router.get('/debug-approved', async (req, res) => {
+  try {
+    const [events] = await pool.execute(
+      'SELECT id, name, start_date, event_start_time, event_end_time, venues, status FROM events WHERE status = "approved" ORDER BY start_date DESC'
+    );
+
+    // Parse venues for display
+    const formattedEvents = events.map(event => ({
+      ...event,
+      venues: event.venues ? JSON.parse(event.venues) : []
+    }));
+
+    res.json({
+      count: events.length,
+      events: formattedEvents
+    });
+  } catch (error) {
+    console.error('Error fetching approved events:', error);
     res.status(500).json({ error: error.message });
   }
 });
